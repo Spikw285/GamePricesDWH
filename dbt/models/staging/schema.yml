@@ -1,0 +1,82 @@
+version: 2
+
+models:
+  - name: stg_games
+    description: >
+      Games enriched with developer/publisher names.
+      Surrogate nulls are replaced with 'Unknown'.
+    columns:
+      - name: game_id
+        description: "Unique game identifier"
+        data_tests:
+          - not_null
+          - unique
+      - name: title
+        description: "Trimmed game title"
+        data_tests:
+          - not_null
+      - name: developer_name
+        description: "Developer name or 'Unknown'"
+        data_tests:
+          - not_null
+      - name: publisher_name
+        description: "Publisher name or 'Unknown'"
+        data_tests:
+          - not_null
+
+  - name: stg_prices
+    description: >
+      Validated price snapshots: negative prices clamped to 0,
+      discount clamped to 0–100, currency uppercased.
+    columns:
+      - name: price_id
+        description: "Surrogate key"
+        data_tests:
+          - not_null
+      - name: game_id
+        description: "FK to games"
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_games')
+              field: game_id
+      - name: store_id
+        description: "FK to stores"
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_stores')
+              field: store_id
+      - name: price
+        description: "Actual price (>= 0)"
+        data_tests:
+          - not_null
+      - name: regular_price
+        description: "Regular price (>= 0)"
+        data_tests:
+          - not_null
+      - name: discount
+        description: "Discount percentage 0–100"
+        data_tests:
+          - not_null
+      - name: currency
+        description: "ISO currency code, uppercased"
+        data_tests:
+          - not_null
+      - name: recorded_at
+        description: "Snapshot timestamp"
+        data_tests:
+          - not_null
+
+  - name: stg_stores
+    description: "Cleaned stores dimension"
+    columns:
+      - name: store_id
+        description: "Unique store identifier"
+        data_tests:
+          - not_null
+          - unique
+      - name: store_name
+        description: "Trimmed store name"
+        data_tests:
+          - not_null

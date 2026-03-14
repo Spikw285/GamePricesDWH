@@ -1,0 +1,23 @@
+name: "game_prices_dwh"
+version: "1.0.0"
+config-version: 2
+
+profile: "game_prices_dwh"
+
+model-paths: ["models"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  game_prices_dwh:
+    staging:
+      +materialized: table    # было: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts

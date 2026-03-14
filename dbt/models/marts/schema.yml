@@ -1,0 +1,136 @@
+version: 2
+
+models:
+  - name: dm_prices_latest
+    description: >
+      Latest price snapshot per (game, store) pair.
+      Deduplicated by taking the most recent recorded_at for each combination.
+    columns:
+      - name: price_id
+        description: "Price row PK from raw source"
+        data_tests:
+          - not_null
+          - unique
+      - name: game_id
+        description: "Game identifier"
+        data_tests:
+          - not_null
+      - name: game_title
+        description: "Game display title"
+        data_tests:
+          - not_null
+      - name: store_id
+        description: "Store identifier"
+        data_tests:
+          - not_null
+      - name: store_name
+        description: "Store display name"
+        data_tests:
+          - not_null
+      - name: price
+        description: "Current price"
+        data_tests:
+          - not_null
+      - name: regular_price
+        description: "Regular (non-discounted) price"
+        data_tests:
+          - not_null
+      - name: discount
+        description: "Discount percentage"
+        data_tests:
+          - not_null
+      - name: currency
+        description: "ISO currency code"
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'BRL', 'RUB']
+      - name: recorded_at
+        description: "Timestamp of the snapshot"
+        data_tests:
+          - not_null
+
+  - name: dm_best_deals
+    description: >
+      Best active deal per game — the store offering the highest discount.
+      Only games with discount > 0 are included.
+    columns:
+      - name: game_id
+        description: "Game identifier"
+        data_tests:
+          - not_null
+          - unique
+      - name: game_title
+        description: "Game title"
+        data_tests:
+          - not_null
+      - name: best_store
+        description: "Store offering the best discount"
+        data_tests:
+          - not_null
+      - name: best_price
+        description: "Price after discount"
+        data_tests:
+          - not_null
+      - name: best_discount
+        description: "Highest discount across stores (> 0)"
+        data_tests:
+          - not_null
+
+  - name: dm_store_stats
+    description: >
+      Aggregated store-level statistics: game count, average prices,
+      average discount, and percentage of games currently on sale.
+    columns:
+      - name: store_id
+        description: "Store identifier"
+        data_tests:
+          - not_null
+          - unique
+      - name: store_name
+        description: "Store name"
+        data_tests:
+          - not_null
+      - name: unique_games
+        description: "Number of distinct games tracked in this store"
+        data_tests:
+          - not_null
+      - name: avg_current_price
+        description: "Average current price across all games in the store"
+        data_tests:
+          - not_null
+      - name: avg_discount_pct
+        description: "Average discount percentage"
+        data_tests:
+          - not_null
+      - name: pct_on_sale
+        description: "Percentage of tracked games currently on sale"
+        data_tests:
+          - not_null
+
+  - name: dm_price_history
+    description: >
+      Full historical price time-series per (game, store).
+      Partitioned by month for efficient time-range queries.
+      Used for trend charts in Superset.
+    columns:
+      - name: game_id
+        description: "Game identifier"
+        data_tests:
+          - not_null
+      - name: store_id
+        description: "Store identifier"
+        data_tests:
+          - not_null
+      - name: price
+        description: "Price at snapshot time"
+        data_tests:
+          - not_null
+      - name: recorded_at
+        description: "Snapshot timestamp"
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: "Date part of recorded_at for grouping in BI"
+        data_tests:
+          - not_null

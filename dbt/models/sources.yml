@@ -1,0 +1,118 @@
+version: 2
+
+sources:
+  - name: raw
+    database: default
+    schema: default
+    description: "Raw tables loaded from ITAD API via Airflow (pg_to_clickhouse sync)"
+
+    tables:
+      - name: developers
+        description: "Game developers dimension"
+        columns:
+          - name: developer_id
+            description: "Unique developer identifier"
+            data_tests:
+              - not_null
+              - unique
+          - name: name
+            description: "Developer name"
+            data_tests:
+              - not_null
+
+      - name: publishers
+        description: "Game publishers dimension"
+        columns:
+          - name: publisher_id
+            description: "Unique publisher identifier"
+            data_tests:
+              - not_null
+              - unique
+          - name: name
+            description: "Publisher name"
+            data_tests:
+              - not_null
+
+      - name: games
+        description: "Game metadata from ITAD API"
+        columns:
+          - name: game_id
+            description: "Unique game identifier (ITAD slug-like ID)"
+            data_tests:
+              - not_null
+              - unique
+          - name: title
+            description: "Game display title"
+            data_tests:
+              - not_null
+          - name: slug
+            description: "URL-friendly game identifier"
+          - name: release_date
+            description: "Game release date"
+          - name: developer_id
+            description: "FK to developers"
+            data_tests:
+              - relationships:
+                  to: source('raw', 'developers')
+                  field: developer_id
+          - name: publisher_id
+            description: "FK to publishers"
+            data_tests:
+              - relationships:
+                  to: source('raw', 'publishers')
+                  field: publisher_id
+
+      - name: stores
+        description: "Digital stores (Steam, GOG, etc.)"
+        columns:
+          - name: store_id
+            description: "Unique store identifier"
+            data_tests:
+              - not_null
+              - unique
+          - name: name
+            description: "Store display name"
+            data_tests:
+              - not_null
+
+      - name: prices
+        description: "Price snapshots — fact table, appended daily by Airflow"
+        columns:
+          - name: price_id
+            description: "Surrogate key"
+            data_tests:
+              - not_null
+          - name: game_id
+            description: "FK to games"
+            data_tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'games')
+                  field: game_id
+          - name: store_id
+            description: "FK to stores"
+            data_tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'stores')
+                  field: store_id
+          - name: price
+            description: "Current sale/actual price in currency"
+            data_tests:
+              - not_null
+          - name: regular_price
+            description: "Full (non-discounted) price"
+            data_tests:
+              - not_null
+          - name: discount
+            description: "Discount percentage 0–100"
+            data_tests:
+              - not_null
+          - name: currency
+            description: "ISO currency code (e.g. USD)"
+            data_tests:
+              - not_null
+          - name: recorded_at
+            description: "Timestamp when the price snapshot was taken"
+            data_tests:
+              - not_null

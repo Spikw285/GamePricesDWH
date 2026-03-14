@@ -1,0 +1,6 @@
+requests
+psycopg2-binary
+python-dotenv
+clickhouse-connect
+dbt-core
+dbt-clickhouse

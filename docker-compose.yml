@@ -1,0 +1,122 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: gp_postgres
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./warehouse:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: gp_clickhouse
+    environment:
+      CLICKHOUSE_USER:     ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB:       ${CLICKHOUSE_DB}
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT}:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/user_config.xml:/etc/clickhouse-server/users.d/user_config.xml  # добавь эту строку
+    ulimits:
+      nofile: {soft: 262144, hard: 262144}
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  airflow:
+    image: apache/airflow:2.9.3
+    container_name: gp_airflow
+    depends_on:
+      postgres:    {condition: service_healthy}
+      clickhouse:  {condition: service_healthy}
+    environment:
+      AIRFLOW__CORE__EXECUTOR:        LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES:   "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY:      ${AIRFLOW_FERNET_KEY}
+      AIRFLOW_USER:                   ${AIRFLOW_USER}
+      AIRFLOW_PASSWORD:               ${AIRFLOW_PASSWORD}
+      # ITAD API
+      ITAD_API_KEY:                   ${ITAD_API_KEY}
+      # PostgreSQL (source)
+      POSTGRES_HOST:                  postgres
+      POSTGRES_PORT:                  5432
+      POSTGRES_DB:                    ${POSTGRES_DB}
+      POSTGRES_USER:                  ${POSTGRES_USER}
+      POSTGRES_PASSWORD:              ${POSTGRES_PASSWORD}
+      # ClickHouse
+      CLICKHOUSE_HOST:                clickhouse
+      CLICKHOUSE_HTTP_PORT:           8123
+      CLICKHOUSE_USER:                ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD:            ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB:                  ${CLICKHOUSE_DB}
+      # dbt
+      DBT_PROJECT_DIR:                /opt/airflow/dbt
+      DBT_PROFILES_DIR:               /opt/airflow/dbt
+      DBT_TARGET:                     dev
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/entrypoint.sh:/entrypoint.sh
+      - ./ingestion:/opt/airflow/ingestion
+      - ./dbt:/opt/airflow/dbt                  # dbt project mounted into Airflow
+      - airflow_logs:/opt/airflow/logs
+    command: bash /entrypoint.sh
+    ports:
+      - "${AIRFLOW_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  superset:
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    container_name: gp_superset
+    depends_on:
+      clickhouse: {condition: service_healthy}
+    environment:
+      SUPERSET_SECRET_KEY:    ${SUPERSET_SECRET_KEY}
+      ADMIN_USERNAME:         ${SUPERSET_USER}
+      ADMIN_PASSWORD:         ${SUPERSET_PASSWORD}
+      ADMIN_EMAIL:            admin@example.com
+      ADMIN_FIRST_NAME:       Admin
+      ADMIN_LAST_NAME:        User
+    volumes:
+      - superset_data:/app/superset_home
+      - ./superset/superset_config.py:/app/pythonpath/superset_config.py
+      - ./superset/init.sh:/superset-init.sh
+    command: bash /superset-init.sh
+    ports:
+      - "${SUPERSET_PORT}:8088"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  airflow_logs:
+  superset_data:
