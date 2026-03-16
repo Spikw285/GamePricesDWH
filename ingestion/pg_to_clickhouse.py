@@ -31,10 +31,7 @@ def get_pg():
 
 
 def get_ch():
-    return clickhouse_connect.get_client(
-        host="localhost",
-        port=8123,
-    )
+    return clickhouse_connect.get_client(**CH_CLIENT)
 
 def init_clickhouse_schema(ch):
     """Создать таблицы в ClickHouse если не существуют"""
@@ -58,6 +55,7 @@ def sync_table(pg_cur, ch, table: str, columns: list[str], order_col: str = None
         log.info(f"{table}: нет данных")
         return
 
+    ch.command(f"TRUNCATE TABLE {table}")
     ch.insert(table, rows, column_names=columns)
     log.info(f"{table}: перенесено {len(rows)} строк")
 
