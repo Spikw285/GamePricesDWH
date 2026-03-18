@@ -11,6 +11,20 @@ ITAD API → PostgreSQL (raw) → ClickHouse (DWH) → Apache Superset (BI)
                             Apache Airflow (orchestration)
 ```
 
+## Airflow Pipeline
+
+The pipeline is split into 3 independent DAGs connected via Airflow Datasets:
+```
+dag_ingestion  ──(Dataset)──►  dag_warehouse  ──(Dataset)──►  dag_transform
+   4 tasks                        2 tasks                        3 tasks
+```
+
+| DAG | Schedule | Tasks | Trigger |
+|-----|----------|-------|---------|
+| `dag_ingestion` | Daily @ 06:00 UTC | fetch_popular_ids → [fetch_games_info, fetch_prices] → load_to_postgres | Cron |
+| `dag_warehouse` | On Dataset | sync_pg_to_ch → data_quality_check | `postgres://games/prices` |
+| `dag_transform` | On Dataset | dbt run → dbt test → dbt docs | `clickhouse://default/marts` |
+
 ## Stack
 
 | Component | Technology |
@@ -19,7 +33,7 @@ ITAD API → PostgreSQL (raw) → ClickHouse (DWH) → Apache Superset (BI)
 | Raw Storage | PostgreSQL 15 |
 | Data Warehouse | ClickHouse 24.8 |
 | Transformations | dbt 1.8 + dbt-clickhouse |
-| Orchestration | Apache Airflow 2.x |
+| Orchestration | Apache Airflow 2.9 |
 | BI / Dashboards | Apache Superset |
 | Infrastructure | Docker Compose |
 
@@ -51,7 +65,7 @@ cd GamePricesDWH
 ### 2. Configure environment
 ```bash
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env — add your ITAD_API_KEY and set passwords
 ```
 
 ### 3. Start all services
@@ -59,7 +73,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-### 4. Run dbt models
+### 4. Run dbt models manually (optional)
 ```bash
 cd dbt
 pip install dbt-core==1.8.7 dbt-clickhouse==1.8.1
@@ -74,12 +88,16 @@ dbt test
 | Airflow | http://localhost:8080 | see .env |
 | Superset | http://localhost:8088 | see .env |
 | ClickHouse | http://localhost:8123 | default / (no password) |
+| PostgreSQL | localhost:5432 | see .env |
 
 ## Project Structure
 ```
 GamePricesDWH/
 ├── airflow/
-│   ├── dags/ingest_pipeline.py   # Main DAG
+│   ├── dags/
+│   │   ├── dag_ingestion.py      # ITAD API → PostgreSQL
+│   │   ├── dag_warehouse.py      # PostgreSQL → ClickHouse + DQ checks
+│   │   └── dag_transform.py      # dbt run → test → docs
 │   ├── entrypoint.sh
 │   └── requirements.txt
 ├── dbt/
@@ -110,8 +128,6 @@ GamePricesDWH/
 - unique keys
 - referential integrity (FK relationships)
 - accepted values (currency codes)
-
-Run tests:
 ```bash
 dbt test
 ```
@@ -121,3 +137,4 @@ dbt test
 - ClickHouse 24.8 new query analyzer requires CTE-based joins (subquery aliases not resolved)
 - dbt models use `table` materialization (not `view`) for ClickHouse compatibility
 - Superset requires `clickhouse-connect` installed in `/app/.venv/` — handled via custom Dockerfile
+- DAGs are connected via Airflow Datasets — if `dag_ingestion` fails, downstream DAGs do not run
